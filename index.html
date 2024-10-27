@@ -4,19 +4,78 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>廣告替換工具</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/papa-parse/5.3.0/papaparse.min.js"></script>
+    <!-- 修改 Papa Parse 的引入方式 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
-        /* 保持原有樣式 */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            background: #fafafa;
+        }
+        .preview-area {
+            margin: 20px 0;
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 4px;
+        }
+        .bookmark-code {
+            background: #f8f8f8;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>廣告替換工具</h1>
-        <div id="debug" style="background:#fff3cd;padding:10px;margin:10px 0;display:none;"></div>
         
-        <div class="upload-area">
+        <div id="status" class="status"></div>
+
+        <div class="upload-area" id="dropZone">
+            <p>將CSV文件拖曳至此處，或點擊選擇檔案</p>
             <input type="file" id="fileInput" accept=".csv">
-            <p>選擇或拖放CSV檔案至此處</p>
             <div id="fileName"></div>
         </div>
 
@@ -25,101 +84,111 @@
             <div id="previewContent"></div>
         </div>
 
-        <div id="bookmark" class="bookmark-area">
+        <div id="bookmarkArea" style="display:none">
             <h2>書籤代碼</h2>
-            <div id="bookmarkCode" class="code"></div>
+            <div id="bookmarkCode" class="bookmark-code"></div>
             <button onclick="copyCode()">複製代碼</button>
         </div>
     </div>
 
     <script>
-        // 添加除錯函數
-        function debug(msg) {
-            console.log(msg);
-            const debugArea = document.getElementById('debug');
-            debugArea.style.display = 'block';
-            debugArea.innerHTML += `<div>${msg}</div>`;
+        // 確保 Papa Parse 已加載
+        window.onload = function() {
+            if (typeof Papa === 'undefined') {
+                showStatus('錯誤：無法載入 CSV 解析器，請重新整理頁面', 'error');
+                return;
+            }
+            showStatus('系統已準備就緒，請選擇 CSV 檔案');
+        };
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.background = type === 'error' ? '#f8d7da' : '#fff3cd';
+            console.log(message);
         }
 
         function handleFile(file) {
-            debug(`開始處理文件: ${file.name}`);
+            showStatus(`處理檔案: ${file.name}`);
             
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                debug('文件讀取完成，開始解析CSV');
-                
-                Papa.parse(e.target.result, {
-                    header: true,
-                    complete: function(results) {
-                        debug(`CSV解析完成，數據行數: ${results.data.length}`);
-                        debug(`欄位: ${Object.keys(results.data[0]).join(', ')}`);
-                        
-                        if (results.errors.length > 0) {
-                            debug(`解析錯誤: ${JSON.stringify(results.errors)}`);
-                            return;
-                        }
+            if (!file.name.endsWith('.csv')) {
+                showStatus('請選擇 CSV 檔案', 'error');
+                return;
+            }
 
-                        // 顯示預覽
-                        showPreview(results.data);
-                        // 生成代碼
-                        generateCode(results.data);
-                    },
-                    error: function(error) {
-                        debug(`解析錯誤: ${error}`);
+            document.getElementById('fileName').textContent = `已選擇: ${file.name}`;
+
+            Papa.parse(file, {
+                header: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        showStatus('CSV 解析錯誤: ' + results.errors[0].message, 'error');
+                        return;
                     }
-                });
-            };
-            
-            reader.onerror = function() {
-                debug('文件讀取錯誤');
-            };
-            
-            reader.readAsText(file);
+
+                    showStatus(`成功讀取 ${results.data.length} 筆資料`);
+                    displayPreview(results.data);
+                    generateBookmarkCode(results.data);
+                },
+                error: function(error) {
+                    showStatus('檔案讀取錯誤: ' + error.message, 'error');
+                }
+            });
         }
 
-        function showPreview(data) {
-            debug('顯示預覽資料');
+        function displayPreview(data) {
             const preview = document.getElementById('preview');
             const content = document.getElementById('previewContent');
             
-            let table = '<table><tr>';
-            const headers = Object.keys(data[0]);
-            headers.forEach(header => table += `<th>${header}</th>`);
-            table += '</tr>';
+            let html = '<table><tr>';
+            Object.keys(data[0]).forEach(key => {
+                html += `<th>${key}</th>`;
+            });
+            html += '</tr>';
             
             data.forEach(row => {
-                table += '<tr>';
-                headers.forEach(header => table += `<td>${row[header]}</td>`);
-                table += '</tr>';
+                html += '<tr>';
+                Object.keys(row).forEach(key => {
+                    html += `<td>${row[key]}</td>`;
+                });
+                html += '</tr>';
             });
-            table += '</table>';
+            html += '</table>';
             
-            content.innerHTML = table;
+            content.innerHTML = html;
             preview.style.display = 'block';
-            debug('預覽資料顯示完成');
         }
 
+        function generateBookmarkCode(data) {
+            const bookmarkCode = `javascript:(function(){
+                const adData = ${JSON.stringify(data)};
+                // 您的原始替換邏輯
+            })();`;
+            
+            document.getElementById('bookmarkCode').textContent = bookmarkCode;
+            document.getElementById('bookmarkArea').style.display = 'block';
+        }
+
+        function copyCode() {
+            const code = document.getElementById('bookmarkCode').textContent;
+            navigator.clipboard.writeText(code)
+                .then(() => showStatus('代碼已複製到剪貼板'))
+                .catch(() => showStatus('複製失敗，請手動複製', 'error'));
+        }
+
+        // 文件選擇事件
         document.getElementById('fileInput').addEventListener('change', function(e) {
-            debug('檔案選擇事件觸發');
             const file = e.target.files[0];
-            if (file) {
-                document.getElementById('fileName').textContent = `已選擇: ${file.name}`;
-                handleFile(file);
-            }
+            if (file) handleFile(file);
         });
 
         // 拖放功能
-        const dropZone = document.querySelector('.upload-area');
+        const dropZone = document.getElementById('dropZone');
         dropZone.addEventListener('dragover', e => e.preventDefault());
         dropZone.addEventListener('drop', e => {
             e.preventDefault();
-            debug('檔案拖放事件觸發');
             const file = e.dataTransfer.files[0];
-            if (file) {
-                document.getElementById('fileName').textContent = `已選擇: ${file.name}`;
-                handleFile(file);
-            }
+            if (file) handleFile(file);
         });
     </script>
 </body>
