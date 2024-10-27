@@ -6,27 +6,85 @@
     <title>廣告替換工具</title>
     <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
-        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #333; }
-        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; background: #fafafa; border-radius: 4px; }
-        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; }
-        .preview-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-        .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .hidden { display: none; }
-        #bookmarkCode { background: #f8f8f8; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; }
-        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            background: #fafafa;
+            border-radius: 4px;
+        }
+        #status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .preview-table th, .preview-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .hidden {
+            display: none;
+        }
+        #bookmarkCode {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: monospace;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #45a049;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>廣告替換工具</h1>
         <div id="status"></div>
-        
+
         <div class="upload-area" id="dropZone">
             <input type="file" id="fileInput" accept=".csv">
             <p>選擇或拖放 CSV 檔案至此處</p>
-            <p style="color: #666;">支援的欄位：imageUrl, title, brand, size</p>
+            <p style="color: #666; font-size: 14px;">支援的欄位：imageUrl, title, brand, size</p>
         </div>
 
         <div id="previewArea" class="hidden">
@@ -61,8 +119,13 @@
                             showStatus('CSV 解析錯誤', 'error');
                             return;
                         }
-                        showPreview(results.data);
-                        generateBookmarkCode(results.data);
+                        const validData = results.data.filter(row => row.imageUrl && row.size);
+                        if (validData.length === 0) {
+                            showStatus('CSV 檔案沒有有效資料', 'error');
+                            return;
+                        }
+                        showPreview(validData);
+                        generateBookmarkCode(validData);
                         showStatus('處理完成！');
                     }
                 });
@@ -70,7 +133,9 @@
         }
 
         function showPreview(data) {
+            const previewArea = document.getElementById('previewArea');
             const content = document.getElementById('previewContent');
+            
             let table = '<table class="preview-table"><tr>';
             const headers = Object.keys(data[0]);
             headers.forEach(header => table += '<th>' + header + '</th>');
@@ -84,36 +149,32 @@
             table += '</table>';
             
             content.innerHTML = table;
-            document.getElementById('previewArea').classList.remove('hidden');
+            previewArea.classList.remove('hidden');
         }
 
         function generateBookmarkCode(data) {
-            const code = 'javascript:(function(){' +
+            const bookmarkCode = 
+                'javascript:' +
+                '(function(){' +
                 'try{' +
-                'const adData=' + JSON.stringify(data) + ';' +
-                'let replacedCount=0;' +
-                'const selectors=[\'ins.adsbygoogle\',\'div[id^="google_ads_iframe"]\',\'div[id^="div-gpt-ad"]\',\'div[data-ad-client]\',\'div[class*="gpt-ad"]\',\'iframe[id^="google_ads_iframe"]\',\'div[class*="adsky"]\'];' +
-                'const sizeGroups={};adData.forEach(ad=>{if(!sizeGroups[ad.size])sizeGroups[ad.size]=[];sizeGroups[ad.size].push(ad);});' +
-                'const sizeCounters={};Object.keys(sizeGroups).forEach(size=>sizeCounters[size]=0);' +
-                'selectors.forEach(s=>{document.querySelectorAll(s).forEach(ad=>{' +
-                'const size=ad.offsetWidth+\'x\'+ad.offsetHeight;' +
-                'if(sizeGroups[size]){' +
-                'const items=sizeGroups[size];' +
-                'const item=items[sizeCounters[size]%items.length];' +
-                'sizeCounters[size]++;' +
-                'const c=ad.tagName===\'IFRAME\'?ad.parentElement:ad;' +
-                'c.innerHTML=\'\';c.style.cssText=\'width:\'+ad.offsetWidth+\'px;height:\'+ad.offsetHeight+\'px;overflow:hidden;position:relative;\'+(ad.offsetWidth===970?\'display:flex;\':\'\')+\'\';' +
-                'if(ad.offsetWidth===300&&ad.offsetHeight===250){' +
+                'var ads=' + JSON.stringify(data) + ';' +
+                'var count=0;' +
+                'var s=[\'ins.adsbygoogle\',\'div[id^="google_ads_iframe"]\',\'div[id^="div-gpt-ad"]\',\'div[data-ad-client]\',\'div[class*="gpt-ad"]\',\'iframe[id^="google_ads_iframe"]\',\'div[class*="adsky"]\'];' +
+                's.forEach(function(sel){' +
+                'document.querySelectorAll(sel).forEach(function(ad){' +
+                'var w=ad.offsetWidth,h=ad.offsetHeight;' +
+                'var match=ads.filter(function(a){return a.size===w+"x"+h});' +
+                'if(match.length){' +
+                'var item=match[count%match.length];' +
+                'var c=ad.tagName==="IFRAME"?ad.parentElement:ad;' +
+                'c.style.cssText="width:"+w+"px;height:"+h+"px;overflow:hidden;position:relative;'+(w===970?"display:flex;":"")+'";' +
+                'if(w===300&&h===250){' +
                 'c.innerHTML=\'<div style="width:300px;height:157px;overflow:hidden"><img src="\'+item.imageUrl+\'" style="width:300px;height:157px;display:block"></div><div style="height:93px;padding:12px 25px 0 25px;position:relative"><div style="font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden">\'+item.title+\'</div><div style="font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px">\'+item.brand+\'</div><div style="position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold">開啟</div></div>\';' +
-                'replacedCount++;' +
-                '}else if(ad.offsetWidth===970&&ad.offsetHeight===250){' +
-                'c.innerHTML=\'<div style="width:478px;height:250px;overflow:hidden"><img src="\'+item.imageUrl+\'" style="width:478px;height:250px;display:block"></div><div style="width:492px;height:250px;padding:20px 25px;position:relative;box-sizing:border-box"><div style="font-size:26px;line-height:1.8;font-weight:bold;color:#666666;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">\'+item.title+\'</div><div style="font-size:13px;color:#999999;position:absolute;bottom:20px;left:25px">\'+item.brand+\'</div><div style="position:absolute;bottom:20px;right:25px;background:#4397F1;color:white;font-size:14px;padding:4px 10px;border-radius:4px;font-weight:bold">開啟</div></div>\';' +
-                'replacedCount++;}}}}));' +
-                'let report=\'廣告替換完成！\\n\\n\';Object.keys(sizeCounters).forEach(size=>{const total=sizeGroups[size].length;const replaced=sizeCounters[size];report+=size+\': 替換了 \'+replaced+\' 個位置，使用了 \'+total+\' 個不同廣告\\n\';});' +
-                'alert(report);}catch(e){alert(\'錯誤：\'+e.message);}}' +
-                ')();';
+                'count++;}}})});' +
+                'alert("已替換 "+count+" 個廣告位");' +
+                '}catch(e){alert("錯誤："+e.message)}})();';
 
-            document.getElementById('bookmarkCode').textContent = code;
+            document.getElementById('bookmarkCode').textContent = bookmarkCode;
             document.getElementById('codeArea').classList.remove('hidden');
         }
 
