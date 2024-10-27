@@ -5,150 +5,179 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>廣告替換工具</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/papa-parse/5.3.0/papaparse.min.js"></script>
-    <!-- 其他 head 內容保持不變 -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            background: #fafafa;
+        }
+        .preview-area {
+            margin: 20px 0;
+            display: none;
+        }
+        .preview-area.show {
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .bookmark-area {
+            margin: 20px 0;
+            display: none;
+        }
+        .bookmark-area.show {
+            display: block;
+        }
+        .code {
+            background: #f8f8f8;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <!-- HTML 結構保持不變 -->
+    <div class="container">
+        <h1>廣告替換工具</h1>
+        
+        <div class="upload-area">
+            <input type="file" id="fileInput" accept=".csv">
+            <p>選擇或拖放CSV檔案至此處</p>
+        </div>
+
+        <div id="preview" class="preview-area">
+            <h2>預覽資料</h2>
+            <div id="previewContent"></div>
+        </div>
+
+        <div id="bookmark" class="bookmark-area">
+            <h2>書籤代碼</h2>
+            <div id="bookmarkCode" class="code"></div>
+            <button onclick="copyCode()">複製代碼</button>
+        </div>
+    </div>
+
     <script>
-        // 檔案處理函數
         function handleFile(file) {
-            console.log('開始處理檔案:', file.name); // 除錯日誌
+            console.log('處理檔案:', file.name);
             
-            if (!file) {
-                console.error('沒有檔案被選擇');
-                return;
-            }
-
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                console.log('檔案讀取完成'); // 除錯日誌
-                
-                try {
-                    Papa.parse(e.target.result, {
-                        header: true,
-                        complete: function(results) {
-                            console.log('CSV 解析結果:', results); // 除錯日誌
-                            
-                            if (results.errors.length > 0) {
-                                console.error('CSV 解析錯誤:', results.errors);
-                                alert('CSV檔案格式錯誤: ' + results.errors[0].message);
-                                return;
-                            }
-
-                            if (!results.data || results.data.length === 0) {
-                                console.error('沒有資料');
-                                alert('CSV檔案沒有資料');
-                                return;
-                            }
-
-                            // 顯示預覽
-                            displayPreview(results.data);
-                            
-                            // 生成書籤代碼
-                            generateBookmarkCode(results.data);
-                            
-                            console.log('處理完成'); // 除錯日誌
-                        },
-                        error: function(error) {
-                            console.error('解析錯誤:', error);
-                            alert('檔案處理失敗: ' + error.message);
-                        }
+            Papa.parse(file, {
+                header: true,
+                complete: function(results) {
+                    console.log('解析結果:', results);
+                    
+                    // 顯示預覽
+                    const preview = document.getElementById('preview');
+                    const content = document.getElementById('previewContent');
+                    
+                    let html = '<table><tr>';
+                    Object.keys(results.data[0]).forEach(key => {
+                        html += `<th>${key}</th>`;
                     });
-                } catch (e) {
-                    console.error('處理過程發生錯誤:', e);
-                    alert('處理過程發生錯誤: ' + e.message);
-                }
-            };
-
-            reader.onerror = function() {
-                console.error('檔案讀取錯誤');
-                alert('檔案讀取錯誤');
-            };
-
-            reader.readAsText(file);
-        }
-
-        // 顯示預覽
-        function displayPreview(data) {
-            console.log('顯示預覽，資料:', data); // 除錯日誌
-            
-            const container = document.getElementById('previewArea');
-            const table = document.createElement('table');
-            
-            // 創建表頭
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            Object.keys(data[0]).forEach(key => {
-                const th = document.createElement('th');
-                th.textContent = key;
-                headerRow.appendChild(th);
-            });
-            thead.appendChild(headerRow);
-            table.appendChild(thead);
-            
-            // 創建表體
-            const tbody = document.createElement('tbody');
-            data.forEach(row => {
-                const tr = document.createElement('tr');
-                Object.keys(row).forEach(key => {
-                    const td = document.createElement('td');
-                    td.textContent = row[key];
-                    tr.appendChild(td);
-                });
-                tbody.appendChild(tr);
-            });
-            table.appendChild(tbody);
-            
-            // 清空並添加新表格
-            container.innerHTML = '';
-            container.appendChild(table);
-            container.classList.remove('hidden');
-        }
-
-        // 生成書籤代碼
-        function generateBookmarkCode(data) {
-            console.log('生成書籤代碼'); // 除錯日誌
-            
-            const codeArea = document.getElementById('bookmarkArea');
-            const codeElement = document.getElementById('bookmarkCode');
-            
-            // 將資料轉換為書籤代碼
-            const bookmarkCode = `javascript:(function(){
-                const adData = ${JSON.stringify(data)};
-                // 原始替換邏輯
-                // ...
-            })();`;
-            
-            codeElement.textContent = bookmarkCode;
-            codeArea.classList.remove('hidden');
-        }
-
-        // 設置事件監聽器
-        document.addEventListener('DOMContentLoaded', function() {
-            const fileInput = document.getElementById('fileInput');
-            const dropZone = document.getElementById('dropZone');
-
-            fileInput.addEventListener('change', function(e) {
-                console.log('檔案選擇事件觸發'); // 除錯日誌
-                const file = e.target.files[0];
-                if (file) {
-                    handleFile(file);
+                    html += '</tr>';
+                    
+                    results.data.forEach(row => {
+                        html += '<tr>';
+                        Object.values(row).forEach(value => {
+                            html += `<td>${value}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+                    
+                    content.innerHTML = html;
+                    preview.classList.add('show');
+                    
+                    // 生成書籤代碼
+                    const bookmarkArea = document.getElementById('bookmark');
+                    const codeArea = document.getElementById('bookmarkCode');
+                    
+                    const bookmarkCode = `javascript:(function(){
+                        const adData = ${JSON.stringify(results.data)};
+                        const style = document.createElement('style');
+                        style.textContent = '.ad-replacer-modal{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:white;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.2);z-index:999999;width:320px;font-family:Arial,sans-serif}';
+                        document.head.appendChild(style);
+                        
+                        let replacedCount = 0;
+                        adData.forEach(item => {
+                            const selectors = ['ins.adsbygoogle', 'div[id^="google_ads_iframe"]', 'div[id^="div-gpt-ad"]', 'div[data-ad-client]'];
+                            selectors.forEach(selector => {
+                                document.querySelectorAll(selector).forEach(ad => {
+                                    const [width, height] = item.size.split('x').map(Number);
+                                    if (ad.offsetWidth === width && ad.offsetHeight === height) {
+                                        replacedCount++;
+                                        const container = ad.tagName === 'IFRAME' ? ad.parentElement : ad;
+                                        container.innerHTML = \`
+                                            <div style="width:${width}px;height:${height}px;overflow:hidden">
+                                                <img src="\${item.imageUrl}" style="width:100%;height:100%;object-fit:cover">
+                                                <div style="padding:12px">
+                                                    <div style="font-size:18px;font-weight:bold">\${item.title}</div>
+                                                    <div style="font-size:12px;color:#999">\${item.brand}</div>
+                                                </div>
+                                            </div>
+                                        \`;
+                                    }
+                                });
+                            });
+                        });
+                        alert(\`已替換 \${replacedCount} 個廣告位\`);
+                    })();`;
+                    
+                    codeArea.textContent = bookmarkCode;
+                    bookmarkArea.classList.add('show');
                 }
             });
+        }
 
-            dropZone.addEventListener('drop', function(e) {
-                e.preventDefault();
-                console.log('檔案拖放事件觸發'); // 除錯日誌
-                const file = e.dataTransfer.files[0];
-                if (file) {
-                    handleFile(file);
-                }
-            });
+        function copyCode() {
+            const code = document.getElementById('bookmarkCode').textContent;
+            navigator.clipboard.writeText(code)
+                .then(() => alert('代碼已複製'))
+                .catch(() => alert('複製失敗，請手動複製'));
+        }
 
-            dropZone.addEventListener('dragover', function(e) {
-                e.preventDefault();
-            });
+        // 設置檔案輸入監聽
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        // 設置拖放功能
+        const uploadArea = document.querySelector('.upload-area');
+        uploadArea.addEventListener('dragover', (e) => e.preventDefault());
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
         });
     </script>
 </body>
