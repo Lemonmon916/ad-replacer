@@ -5,52 +5,54 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>廣告替換工具</title>
     <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
-    <!-- 樣式保持不變 -->
-    <style>
-        /* 原有樣式 */
-    </style>
+    <!-- 原有樣式保持不變 -->
 </head>
 <body>
-    <!-- HTML 結構保持不變 -->
+    <div class="container">
+        <!-- 原有 HTML 結構保持不變 -->
+    </div>
+
     <script>
         function processFile(file) {
             const reader = new FileReader();
+            
+            // 使用 big5 編碼讀取文件
+            reader.readAsText(file, 'big5');
+            
             reader.onload = function(e) {
-                Papa.parse(file, {
+                const content = e.target.result;
+                Papa.parse(content, {
                     header: true,
-                    encoding: 'big5', // 指定編碼
+                    skipEmptyLines: true,
                     complete: function(results) {
-                        if (results.errors.length) {
-                            showStatus('CSV 解析錯誤', 'error');
-                            return;
-                        }
+                        console.log('解析結果:', results.data); // 調試用
                         showPreview(results.data);
                         generateBookmarkCode(results.data);
+                    },
+                    error: function(error) {
+                        console.error('解析錯誤:', error); // 調試用
                     }
                 });
             };
-            reader.readAsText(file, 'big5'); // 指定使用 big5 編碼
         }
 
         function generateBookmarkCode(data) {
             const code = `javascript:(function(){
                 try {
-                    // 儲存原始資料
-                    const adData = ${JSON.stringify(data)};
-                    
-                    // 按尺寸分組並追蹤每個尺寸的當前索引
-                    const sizeGroups = {};
-                    const sizeIndices = {};
-                    
-                    adData.forEach(ad => {
-                        if (!sizeGroups[ad.size]) {
-                            sizeGroups[ad.size] = [];
-                            sizeIndices[ad.size] = 0;
+                    // 儲存不同尺寸的廣告資料和位置計數器
+                    const adSizes = {};
+                    const counters = {};
+
+                    // 初始化廣告資料分組
+                    ${JSON.stringify(data)}.forEach(ad => {
+                        if (!adSizes[ad.size]) {
+                            adSizes[ad.size] = [];
+                            counters[ad.size] = 0;
                         }
-                        sizeGroups[ad.size].push(ad);
+                        adSizes[ad.size].push(ad);
                     });
-                    
-                    let replacedCount = 0;
+
+                    // 廣告選擇器
                     const selectors = [
                         'ins.adsbygoogle',
                         'div[id^="google_ads_iframe"]',
@@ -60,76 +62,87 @@
                         'iframe[id^="google_ads_iframe"]',
                         'div[class*="adsky"]'
                     ];
-                    
-                    selectors.forEach(selector => {
-                        document.querySelectorAll(selector).forEach(ad => {
-                            const size = ad.offsetWidth + 'x' + ad.offsetHeight;
-                            
-                            if (sizeGroups[size] && sizeGroups[size].length > 0) {
-                                // 取得當前索引的廣告
-                                const currentIndex = sizeIndices[size];
-                                const item = sizeGroups[size][currentIndex];
-                                
-                                // 更新索引，實現循環
-                                sizeIndices[size] = (currentIndex + 1) % sizeGroups[size].length;
-                                
-                                const adContainer = ad.tagName === 'IFRAME' ? ad.parentElement : ad;
-                                
-                                // 設置基本樣式
-                                adContainer.style.cssText = \`
-                                    width: \${ad.offsetWidth}px;
-                                    height: \${ad.offsetHeight}px;
-                                    overflow: hidden;
-                                    position: relative;
-                                    \${ad.offsetWidth === 970 ? 'display: flex;' : ''}
-                                \`;
-                                
-                                // 根據尺寸設置內容
-                                if (ad.offsetWidth === 300 && ad.offsetHeight === 250) {
-                                    adContainer.innerHTML = \`
-                                        <div style="width:300px;height:157px;overflow:hidden">
-                                            <img src="\${item.imageUrl}" style="width:300px;height:157px;display:block">
-                                        </div>
-                                        <div style="height:93px;padding:12px 25px 0 25px;position:relative">
-                                            <div style="font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden">\${item.title}</div>
-                                            <div style="font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px">\${item.brand}</div>
-                                            <div style="position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold">開啟</div>
-                                        </div>
+
+                    let replacedCount = 0;
+                    let report = {};
+
+                    // 處理每個尺寸的廣告
+                    Object.keys(adSizes).forEach(size => {
+                        report[size] = 0;
+                        const ads = adSizes[size];
+                        const [width, height] = size.split('x').map(Number);
+
+                        // 尋找符合尺寸的廣告位
+                        selectors.forEach(selector => {
+                            document.querySelectorAll(selector).forEach(adSpot => {
+                                if (adSpot.offsetWidth === width && adSpot.offsetHeight === height) {
+                                    // 取得下一個廣告內容
+                                    const adIndex = counters[size] % ads.length;
+                                    const ad = ads[adIndex];
+                                    counters[size]++;
+                                    report[size]++;
+
+                                    // 替換廣告內容
+                                    const container = adSpot.tagName === 'IFRAME' ? adSpot.parentElement : adSpot;
+                                    container.innerHTML = '';
+                                    container.style.cssText = \`
+                                        width: \${width}px;
+                                        height: \${height}px;
+                                        overflow: hidden;
+                                        position: relative;
+                                        \${width === 970 ? 'display: flex;' : ''}
                                     \`;
-                                } else if (ad.offsetWidth === 970 && ad.offsetHeight === 250) {
-                                    adContainer.innerHTML = \`
-                                        <div style="width:478px;height:250px;overflow:hidden">
-                                            <img src="\${item.imageUrl}" style="width:478px;height:250px;display:block">
-                                        </div>
-                                        <div style="width:492px;height:250px;padding:20px 25px;position:relative;box-sizing:border-box">
-                                            <div style="font-size:26px;line-height:1.8;font-weight:bold;color:#666666;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">\${item.title}</div>
-                                            <div style="font-size:13px;color:#999999;position:absolute;bottom:20px;left:25px">\${item.brand}</div>
-                                            <div style="position:absolute;bottom:20px;right:25px;background:#4397F1;color:white;font-size:14px;padding:4px 10px;border-radius:4px;font-weight:bold">開啟</div>
-                                        </div>
-                                    \`;
+
+                                    // 根據尺寸設置廣告內容
+                                    if (width === 300 && height === 250) {
+                                        container.innerHTML = \`
+                                            <div style="width:300px;height:157px;overflow:hidden">
+                                                <img src="\${decodeURIComponent(ad.imageUrl)}" style="width:300px;height:157px;display:block">
+                                            </div>
+                                            <div style="height:93px;padding:12px 25px 0 25px;position:relative">
+                                                <div style="font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden">\${decodeURIComponent(ad.title)}</div>
+                                                <div style="font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px">\${decodeURIComponent(ad.brand)}</div>
+                                                <div style="position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold">開啟</div>
+                                            </div>
+                                        \`;
+                                    } else if (width === 970 && height === 250) {
+                                        container.innerHTML = \`
+                                            <div style="width:478px;height:250px;overflow:hidden">
+                                                <img src="\${decodeURIComponent(ad.imageUrl)}" style="width:478px;height:250px;display:block">
+                                            </div>
+                                            <div style="width:492px;height:250px;padding:20px 25px;position:relative;box-sizing:border-box">
+                                                <div style="font-size:26px;line-height:1.8;font-weight:bold;color:#666666;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">\${decodeURIComponent(ad.title)}</div>
+                                                <div style="font-size:13px;color:#999999;position:absolute;bottom:20px;left:25px">\${decodeURIComponent(ad.brand)}</div>
+                                                <div style="position:absolute;bottom:20px;right:25px;background:#4397F1;color:white;font-size:14px;padding:4px 10px;border-radius:4px;font-weight:bold">開啟</div>
+                                            </div>
+                                        \`;
+                                    }
+                                    replacedCount++;
                                 }
-                                
-                                replacedCount++;
-                            }
+                            });
                         });
                     });
+
+                    // 生成報告
+                    let reportText = '廣告替換報告：\\n\\n';
+                    Object.keys(report).forEach(size => {
+                        const total = adSizes[size].length;
+                        reportText += \`\${size}: 替換了 \${report[size]} 個位置，使用了 \${total} 個不同廣告\\n\`;
+                    });
+                    reportText += \`\\n總計替換: \${replacedCount} 個廣告位\`;
                     
-                    // 顯示替換報告
-                    const report = Object.entries(sizeGroups).map(([size, ads]) => 
-                        \`\${size}: 共使用了 \${ads.length} 個不同廣告\`
-                    ).join('\\n');
-                    
-                    alert(\`廣告替換完成！\\n\\n\${report}\\n\\n總計替換: \${replacedCount} 個廣告位\`);
+                    alert(reportText);
                 } catch(e) {
-                    alert('發生錯誤：' + e.message);
+                    alert('錯誤：' + e.message);
+                    console.error(e); // 調試用
                 }
             })();`;
-            
+
             document.getElementById('bookmarkCode').textContent = code;
             document.getElementById('codeArea').classList.remove('hidden');
         }
 
-        // 其他輔助函數保持不變
+        // 其他函數保持不變
     </script>
 </body>
 </html>
