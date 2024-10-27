@@ -128,28 +128,33 @@
                 return;
             }
 
-            window.Papa.parse(file, {
-                header: true,
-                complete: function(results) {
-                    if (results.errors.length) {
-                        showStatus('CSV 解析錯誤: ' + results.errors[0].message, 'error');
-                        return;
-                    }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                Papa.parse(e.target.result, {
+                    header: true,
+                    encoding: 'big5',
+                    complete: function(results) {
+                        if (results.errors.length) {
+                            showStatus('CSV 解析錯誤: ' + results.errors[0].message, 'error');
+                            return;
+                        }
 
-                    const data = results.data;
-                    if (!data.length) {
-                        showStatus('CSV 檔案沒有資料', 'error');
-                        return;
-                    }
+                        const data = results.data;
+                        if (!data.length) {
+                            showStatus('CSV 檔案沒有資料', 'error');
+                            return;
+                        }
 
-                    showPreview(data);
-                    generateBookmarkCode(data);
-                    showStatus('處理完成！');
-                },
-                error: function(error) {
-                    showStatus('檔案處理錯誤: ' + error.message, 'error');
-                }
-            });
+                        showPreview(data);
+                        generateBookmarkCode(data);
+                        showStatus('處理完成！');
+                    },
+                    error: function(error) {
+                        showStatus('檔案處理錯誤: ' + error.message, 'error');
+                    }
+                });
+            };
+            reader.readAsText(file, 'big5');
         }
 
         function showPreview(data) {
@@ -176,24 +181,38 @@
             const code = `javascript:(function(){
                 const adData = ${JSON.stringify(data)};
                 
-                let replacedCount = 0;
+                // 按尺寸分組廣告數據
+                const adsBySize = {};
                 adData.forEach(item => {
-                    const selectors = [
-                        'ins.adsbygoogle',
-                        'div[id^="google_ads_iframe"]',
-                        'div[id^="div-gpt-ad"]',
-                        'div[data-ad-client]',
-                        'div[class*="gpt-ad"]',
-                        'iframe[id^="google_ads_iframe"]',
-                        'div[class*="adsky"]'
-                    ];
+                    if (!adsBySize[item.size]) {
+                        adsBySize[item.size] = [];
+                    }
+                    adsBySize[item.size].push(item);
+                });
+
+                let replacedCount = 0;
+                const selectors = [
+                    'ins.adsbygoogle',
+                    'div[id^="google_ads_iframe"]',
+                    'div[id^="div-gpt-ad"]',
+                    'div[data-ad-client]',
+                    'div[class*="gpt-ad"]',
+                    'iframe[id^="google_ads_iframe"]',
+                    'div[class*="adsky"]'
+                ];
+
+                // 為每個尺寸找到對應的廣告位
+                Object.keys(adsBySize).forEach(size => {
+                    const [width, height] = size.split('x').map(Number);
+                    let currentIndex = 0;
                     
                     selectors.forEach(selector => {
                         document.querySelectorAll(selector).forEach(ad => {
-                            const [width, height] = item.size.split('x').map(Number);
-                            
                             if (ad.offsetWidth === width && ad.offsetHeight === height) {
+                                // 使用當前尺寸的下一個廣告內容
+                                const item = adsBySize[size][currentIndex % adsBySize[size].length];
                                 const adContainer = ad.tagName === 'IFRAME' ? ad.parentElement : ad;
+                                
                                 adContainer.innerHTML = '';
                                 adContainer.style.width = width + 'px';
                                 adContainer.style.height = height + 'px';
@@ -224,6 +243,8 @@
                                         </div>
                                     \`;
                                 }
+                                
+                                currentIndex++;
                                 replacedCount++;
                             }
                         });
