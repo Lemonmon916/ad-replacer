@@ -6,92 +6,26 @@
     <title>廣告替換工具</title>
     <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        .upload-area {
-            border: 2px dashed #ccc;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-            background: #fafafa;
-            border-radius: 4px;
-        }
-        #status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 4px;
-            display: none;
-        }
-        .preview-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-        }
-        .preview-table th, .preview-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .preview-table th {
-            background: #f5f5f5;
-        }
-        .hidden {
-            display: none;
-        }
-        #bookmarkCode {
-            background: #f8f8f8;
-            padding: 15px;
-            border-radius: 4px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            border: 1px solid #ddd;
-            margin: 10px 0;
-            font-family: monospace;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
-        }
-        button:hover {
-            background: #45a049;
-        }
-        .section {
-            margin: 20px 0;
-        }
-        .section-title {
-            font-size: 18px;
-            margin-bottom: 10px;
-            color: #333;
-        }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; background: #fafafa; border-radius: 4px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; }
+        .preview-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .preview-table th { background: #f5f5f5; }
+        .hidden { display: none; }
+        #bookmarkCode { background: #f8f8f8; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; border: 1px solid #ddd; margin: 10px 0; font-family: monospace; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        button:hover { background: #45a049; }
+        .section { margin: 20px 0; }
+        .section-title { font-size: 18px; margin-bottom: 10px; color: #333; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>廣告替換工具</h1>
-        
         <div id="status"></div>
-
         <div class="section">
             <div class="upload-area" id="dropZone">
                 <input type="file" id="fileInput" accept=".csv">
@@ -99,12 +33,10 @@
                 <p style="color: #666; font-size: 14px;">支援的欄位：imageUrl, title, brand, size</p>
             </div>
         </div>
-
         <div id="previewArea" class="section hidden">
             <div class="section-title">預覽資料</div>
             <div id="previewContent"></div>
         </div>
-
         <div id="codeArea" class="section hidden">
             <div class="section-title">書籤代碼</div>
             <pre id="bookmarkCode"></pre>
@@ -123,25 +55,19 @@
         function processFile(file) {
             showStatus('正在處理檔案...');
             
-            if (!window.Papa) {
-                showStatus('CSV 解析器尚未載入，請重新整理頁面', 'error');
-                return;
-            }
-
             const reader = new FileReader();
             reader.onload = function(e) {
                 Papa.parse(e.target.result, {
                     header: true,
-                    encoding: 'big5',
                     complete: function(results) {
                         if (results.errors.length) {
                             showStatus('CSV 解析錯誤: ' + results.errors[0].message, 'error');
                             return;
                         }
 
-                        const data = results.data;
+                        const data = results.data.filter(row => row.imageUrl && row.size); // 過濾無效數據
                         if (!data.length) {
-                            showStatus('CSV 檔案沒有資料', 'error');
+                            showStatus('CSV 檔案沒有有效資料', 'error');
                             return;
                         }
 
@@ -154,7 +80,7 @@
                     }
                 });
             };
-            reader.readAsText(file, 'big5');
+            reader.readAsText(file);
         }
 
         function showPreview(data) {
@@ -179,46 +105,43 @@
 
         function generateBookmarkCode(data) {
             const code = `javascript:(function(){
-                const adData = ${JSON.stringify(data)};
-                
-                // 按尺寸分組廣告數據
-                const adsBySize = {};
-                adData.forEach(item => {
-                    if (!adsBySize[item.size]) {
-                        adsBySize[item.size] = [];
-                    }
-                    adsBySize[item.size].push(item);
-                });
-
-                let replacedCount = 0;
-                const selectors = [
-                    'ins.adsbygoogle',
-                    'div[id^="google_ads_iframe"]',
-                    'div[id^="div-gpt-ad"]',
-                    'div[data-ad-client]',
-                    'div[class*="gpt-ad"]',
-                    'iframe[id^="google_ads_iframe"]',
-                    'div[class*="adsky"]'
-                ];
-
-                // 為每個尺寸找到對應的廣告位
-                Object.keys(adsBySize).forEach(size => {
-                    const [width, height] = size.split('x').map(Number);
-                    let currentIndex = 0;
+                try {
+                    const adData = ${JSON.stringify(data)};
+                    let replacedCount = 0;
+                    const sizeCounters = {};
                     
+                    adData.forEach(item => {
+                        if (!sizeCounters[item.size]) sizeCounters[item.size] = 0;
+                    });
+
+                    const selectors = [
+                        'ins.adsbygoogle',
+                        'div[id^="google_ads_iframe"]',
+                        'div[id^="div-gpt-ad"]',
+                        'div[data-ad-client]',
+                        'div[class*="gpt-ad"]',
+                        'iframe[id^="google_ads_iframe"]',
+                        'div[class*="adsky"]'
+                    ];
+
                     selectors.forEach(selector => {
                         document.querySelectorAll(selector).forEach(ad => {
-                            if (ad.offsetWidth === width && ad.offsetHeight === height) {
-                                // 使用當前尺寸的下一個廣告內容
-                                const item = adsBySize[size][currentIndex % adsBySize[size].length];
-                                const adContainer = ad.tagName === 'IFRAME' ? ad.parentElement : ad;
-                                
+                            const adContainer = ad.tagName === 'IFRAME' ? ad.parentElement : ad;
+                            const width = adContainer.offsetWidth;
+                            const height = adContainer.offsetHeight;
+                            const size = width + 'x' + height;
+
+                            const sizeData = adData.filter(item => item.size === size);
+                            if (sizeData.length > 0) {
+                                const item = sizeData[sizeCounters[size] % sizeData.length];
+                                sizeCounters[size]++;
+
                                 adContainer.innerHTML = '';
                                 adContainer.style.width = width + 'px';
                                 adContainer.style.height = height + 'px';
                                 adContainer.style.overflow = 'hidden';
                                 adContainer.style.position = 'relative';
-                                
+
                                 if (width === 300 && height === 250) {
                                     adContainer.innerHTML = \`
                                         <div style="width:300px;height:157px;overflow:hidden">
@@ -230,6 +153,7 @@
                                             <div style="position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold">開啟</div>
                                         </div>
                                     \`;
+                                    replacedCount++;
                                 } else if (width === 970 && height === 250) {
                                     adContainer.style.display = 'flex';
                                     adContainer.innerHTML = \`
@@ -242,16 +166,23 @@
                                             <div style="position:absolute;bottom:20px;right:25px;background:#4397F1;color:white;font-size:14px;padding:4px 10px;border-radius:4px;font-weight:bold">開啟</div>
                                         </div>
                                     \`;
+                                    replacedCount++;
                                 }
-                                
-                                currentIndex++;
-                                replacedCount++;
                             }
                         });
                     });
-                });
-                
-                alert(\`已替換 \${replacedCount} 個廣告位\`);
+
+                    let report = '廣告替換完成！\\n';
+                    Object.keys(sizeCounters).forEach(size => {
+                        if (sizeCounters[size] > 0) {
+                            report += \`\\n\${size}: 替換了 \${sizeCounters[size]} 個廣告\`;
+                        }
+                    });
+                    report += \`\\n\\n總計替換: \${replacedCount} 個廣告位\`;
+                    alert(report);
+                } catch(err) {
+                    alert('執行過程發生錯誤: ' + err.message);
+                }
             })();`;
             
             document.getElementById('bookmarkCode').textContent = code;
