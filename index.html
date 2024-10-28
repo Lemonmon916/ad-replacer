@@ -4,18 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>廣告替換工具</title>
-    <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
+    <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
         .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         h1, h2 { text-align: center; color: #333; }
         .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; background: #fafafa; border-radius: 4px; }
-        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; background: #e8f5e9; }
         .preview-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .hidden { display: none; }
         #bookmarkCode { background: #f8f8f8; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; font-family: monospace; }
-        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -42,41 +42,73 @@
     </div>
 
     <script>
+        function showStatus(msg) {
+            var status = document.getElementById('status');
+            status.textContent = msg;
+            status.style.display = 'block';
+        }
+
         function processFile(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                Papa.parse(file, {
-                    header: true,
-                    complete: function(results) {
-                        showPreview(results.data);
-                        generateBookmarkCode(results.data);
+            showStatus('處理檔案中...');
+            
+            Papa.parse(file, {
+                header: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    console.log('ParseResults:', results);  // 調試用
+                    if (results.errors.length) {
+                        showStatus('CSV 解析錯誤: ' + results.errors[0].message);
+                        return;
                     }
-                });
-            };
-            reader.readAsText(file);
+                    if (!results.data || results.data.length === 0) {
+                        showStatus('沒有發現有效資料');
+                        return;
+                    }
+                    showPreview(results.data);
+                    generateBookmarkCode(results.data);
+                    showStatus('處理完成');
+                },
+                error: function(error) {
+                    showStatus('檔案處理錯誤: ' + error.message);
+                }
+            });
         }
 
         function showPreview(data) {
-            const content = document.getElementById('previewContent');
-            let table = '<table class="preview-table"><tr>';
-            Object.keys(data[0]).forEach(key => table += '<th>' + key + '</th>');
+            var content = document.getElementById('previewContent');
+            var headers = ['imageUrl', 'videoUrl', 'title', 'brand', 'size'];
+            
+            var table = '<table class="preview-table"><tr>';
+            headers.forEach(function(header) {
+                table += '<th>' + header + '</th>';
+            });
             table += '</tr>';
-            data.forEach(row => {
-                table += '<tr>';
-                Object.keys(row).forEach(key => table += '<td>' + (row[key] || '') + '</td>');
-                table += '</tr>';
+            
+            data.forEach(function(row) {
+                if (row.imageUrl) {  // 只顯示有效行
+                    table += '<tr>';
+                    headers.forEach(function(header) {
+                        table += '<td>' + (row[header] || '') + '</td>';
+                    });
+                    table += '</tr>';
+                }
             });
             table += '</table>';
+            
             content.innerHTML = table;
             document.getElementById('previewArea').classList.remove('hidden');
         }
 
         function generateBookmarkCode(data) {
+            // 過濾掉空行
+            data = data.filter(function(row) {
+                return row.imageUrl && row.size && row.title;
+            });
+
             var code = "javascript:(function(){" +
                 "var adData=" + JSON.stringify(data) + ";" +
                 "var count=0;" +
-                "var selectors='ins.adsbygoogle,div[id^=\"google_ads_iframe\"],div[id^=\"div-gpt-ad\"],div[data-ad-client],div[class*=\"gpt-ad\"],iframe[id^=\"google_ads_iframe\"],div[class*=\"adsky\"]';" +
-                "document.querySelectorAll(selectors).forEach(function(ad){" +
+                "document.querySelectorAll('ins.adsbygoogle,div[id^=\"google_ads_iframe\"],div[id^=\"div-gpt-ad\"],div[data-ad-client],div[class*=\"gpt-ad\"],iframe[id^=\"google_ads_iframe\"],div[class*=\"adsky\"]').forEach(function(ad){" +
                     "var w=ad.offsetWidth;" +
                     "var h=ad.offsetHeight;" +
                     "var size=w+'x'+h;" +
@@ -100,28 +132,23 @@
         }
 
         function copyToClipboard() {
-            const code = document.getElementById('bookmarkCode').textContent;
+            var code = document.getElementById('bookmarkCode').textContent;
             navigator.clipboard.writeText(code).then(function() {
-                var status = document.getElementById('status');
-                status.textContent = '代碼已複製到剪貼板！';
-                status.style.display = 'block';
-                status.style.background = '#e8f5e9';
+                showStatus('代碼已複製！');
                 setTimeout(function() {
-                    status.style.display = 'none';
+                    document.getElementById('status').style.display = 'none';
                 }, 2000);
             });
         }
 
+        // 綁定事件
         document.getElementById('fileInput').addEventListener('change', function(e) {
             var file = e.target.files[0];
             if (file) processFile(file);
         });
 
         var dropZone = document.getElementById('dropZone');
-        dropZone.addEventListener('dragover', function(e) {
-            e.preventDefault();
-        });
-        
+        dropZone.addEventListener('dragover', function(e) { e.preventDefault(); });
         dropZone.addEventListener('drop', function(e) {
             e.preventDefault();
             var file = e.dataTransfer.files[0];
