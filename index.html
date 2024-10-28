@@ -6,85 +6,27 @@
     <title>廣告替換工具</title>
     <script src="https://unpkg.com/papaparse@latest/papaparse.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1, h2 {
-            text-align: center;
-            color: #333;
-        }
-        .upload-area {
-            border: 2px dashed #ccc;
-            padding: 20px;
-            text-align: center;
-            margin: 20px 0;
-            background: #fafafa;
-            border-radius: 4px;
-        }
-        #status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 4px;
-            display: none;
-        }
-        .preview-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 10px 0;
-        }
-        .preview-table th, .preview-table td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        .hidden {
-            display: none;
-        }
-        #bookmarkCode {
-            background: #f8f8f8;
-            padding: 15px;
-            border-radius: 4px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            font-family: monospace;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-        }
-        button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
-            margin: 10px 0;
-        }
-        button:hover {
-            background: #45a049;
-        }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { text-align: center; color: #333; }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; background: #fafafa; border-radius: 4px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; }
+        .preview-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .hidden { display: none; }
+        #bookmarkCode { background: #f8f8f8; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; font-family: monospace; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>廣告替換工具</h1>
         <div id="status"></div>
-
+        
         <div class="upload-area" id="dropZone">
             <input type="file" id="fileInput" accept=".csv">
             <p>選擇或拖放 CSV 檔案至此處</p>
-            <p style="color: #666; font-size: 14px;">支援的欄位：imageUrl, title, brand, size</p>
+            <p>支援的欄位：imageUrl, title, brand, size</p>
         </div>
 
         <div id="previewArea" class="hidden">
@@ -100,101 +42,89 @@
     </div>
 
     <script>
-        function showStatus(message, type = 'info') {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.style.background = type === 'error' ? '#ffebee' : '#e8f5e9';
-            statusDiv.style.display = 'block';
-        }
-
         function processFile(file) {
             const reader = new FileReader();
-            reader.readAsText(file, 'utf-8');
-            
             reader.onload = function(e) {
-                Papa.parse(e.target.result, {
+                Papa.parse(file, {
                     header: true,
                     complete: function(results) {
-                        if (results.errors.length) {
-                            showStatus('CSV 解析錯誤', 'error');
-                            return;
-                        }
-                        const validData = results.data.filter(row => row.imageUrl && row.size);
-                        if (validData.length === 0) {
-                            showStatus('CSV 檔案沒有有效資料', 'error');
-                            return;
-                        }
-                        showPreview(validData);
-                        generateBookmarkCode(validData);
-                        showStatus('處理完成！');
+                        showPreview(results.data);
+                        generateBookmarkCode(results.data);
                     }
                 });
             };
+            reader.readAsText(file);
         }
 
         function showPreview(data) {
-            const previewArea = document.getElementById('previewArea');
             const content = document.getElementById('previewContent');
-            
             let table = '<table class="preview-table"><tr>';
-            const headers = Object.keys(data[0]);
-            headers.forEach(header => table += '<th>' + header + '</th>');
+            Object.keys(data[0]).forEach(key => table += '<th>' + key + '</th>');
             table += '</tr>';
-            
             data.forEach(row => {
                 table += '<tr>';
-                headers.forEach(header => table += '<td>' + (row[header] || '') + '</td>');
+                Object.keys(row).forEach(key => table += '<td>' + (row[key] || '') + '</td>');
                 table += '</tr>';
             });
             table += '</table>';
-            
             content.innerHTML = table;
-            previewArea.classList.remove('hidden');
+            document.getElementById('previewArea').classList.remove('hidden');
         }
 
         function generateBookmarkCode(data) {
-            const bookmarkCode = 
-                'javascript:' +
-                '(function(){' +
-                'try{' +
-                'var ads=' + JSON.stringify(data) + ';' +
-                'var count=0;' +
-                'var s=[\'ins.adsbygoogle\',\'div[id^="google_ads_iframe"]\',\'div[id^="div-gpt-ad"]\',\'div[data-ad-client]\',\'div[class*="gpt-ad"]\',\'iframe[id^="google_ads_iframe"]\',\'div[class*="adsky"]\'];' +
-                's.forEach(function(sel){' +
-                'document.querySelectorAll(sel).forEach(function(ad){' +
-                'var w=ad.offsetWidth,h=ad.offsetHeight;' +
-                'var match=ads.filter(function(a){return a.size===w+"x"+h});' +
-                'if(match.length){' +
-                'var item=match[count%match.length];' +
-                'var c=ad.tagName==="IFRAME"?ad.parentElement:ad;' +
-                'c.style.cssText="width:"+w+"px;height:"+h+"px;overflow:hidden;position:relative;'+(w===970?"display:flex;":"")+'";' +
-                'if(w===300&&h===250){' +
-                'c.innerHTML=\'<div style="width:300px;height:157px;overflow:hidden"><img src="\'+item.imageUrl+\'" style="width:300px;height:157px;display:block"></div><div style="height:93px;padding:12px 25px 0 25px;position:relative"><div style="font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden">\'+item.title+\'</div><div style="font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px">\'+item.brand+\'</div><div style="position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold">開啟</div></div>\';' +
-                'count++;}}})});' +
-                'alert("已替換 "+count+" 個廣告位");' +
-                '}catch(e){alert("錯誤："+e.message)}})();';
+            var code = "javascript:(function(){" +
+                "var adData=" + JSON.stringify(data) + ";" +
+                "var count=0;" +
+                "var selectors='ins.adsbygoogle,div[id^=\"google_ads_iframe\"],div[id^=\"div-gpt-ad\"],div[data-ad-client],div[class*=\"gpt-ad\"],iframe[id^=\"google_ads_iframe\"],div[class*=\"adsky\"]';" +
+                "document.querySelectorAll(selectors).forEach(function(ad){" +
+                    "var w=ad.offsetWidth;" +
+                    "var h=ad.offsetHeight;" +
+                    "var size=w+'x'+h;" +
+                    "var ads=adData.filter(function(item){return item.size===size;});" +
+                    "if(ads.length){" +
+                        "var item=ads[count%ads.length];" +
+                        "var container=ad.tagName==='IFRAME'?ad.parentElement:ad;" +
+                        "container.innerHTML='';" +
+                        "container.style.cssText='width:'+w+'px;height:'+h+'px;overflow:hidden;position:relative;';" +
+                        "if(w===300&&h===250){" +
+                            "container.innerHTML='<div style=\"width:300px;height:157px;overflow:hidden\"><img src=\"'+item.imageUrl+'\" style=\"width:300px;height:157px;display:block\"></div><div style=\"height:93px;padding:12px 25px 0 25px;position:relative\"><div style=\"font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden\">'+item.title+'</div><div style=\"font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px\">'+item.brand+'</div><div style=\"position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold\">開啟</div></div>';" +
+                            "count++;" +
+                        "}" +
+                    "}" +
+                "});" +
+                "alert('已替換 '+count+' 個廣告');" +
+            "})();";
 
-            document.getElementById('bookmarkCode').textContent = bookmarkCode;
+            document.getElementById('bookmarkCode').textContent = code;
             document.getElementById('codeArea').classList.remove('hidden');
         }
 
         function copyToClipboard() {
             const code = document.getElementById('bookmarkCode').textContent;
-            navigator.clipboard.writeText(code)
-                .then(() => showStatus('代碼已複製到剪貼板！'))
-                .catch(() => showStatus('複製失敗，請手動複製', 'error'));
+            navigator.clipboard.writeText(code).then(function() {
+                var status = document.getElementById('status');
+                status.textContent = '代碼已複製到剪貼板！';
+                status.style.display = 'block';
+                status.style.background = '#e8f5e9';
+                setTimeout(function() {
+                    status.style.display = 'none';
+                }, 2000);
+            });
         }
 
-        document.getElementById('fileInput').addEventListener('change', event => {
-            const file = event.target.files[0];
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            var file = e.target.files[0];
             if (file) processFile(file);
         });
 
-        const dropZone = document.getElementById('dropZone');
-        dropZone.addEventListener('dragover', e => e.preventDefault());
-        dropZone.addEventListener('drop', e => {
+        var dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', function(e) {
             e.preventDefault();
-            const file = e.dataTransfer.files[0];
+        });
+        
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            var file = e.dataTransfer.files[0];
             if (file) processFile(file);
         });
     </script>
