@@ -8,22 +8,20 @@
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
         .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1, h2 { text-align: center; color: #333; }
+        h1 { text-align: center; color: #333; }
         .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; background: #fafafa; border-radius: 4px; }
-        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; background: #e8f5e9; }
-        .debug { background: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 4px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; }
         .preview-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .hidden { display: none; }
-        #bookmarkCode { background: #f8f8f8; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; font-family: monospace; }
-        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; margin-top: 10px; }
+        #bookmarkCode { background: #f8f8f8; padding: 15px; border-radius: 4px; white-space: pre-wrap; word-break: break-all; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; width: 100%; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>廣告替換工具</h1>
         <div id="status"></div>
-        <div id="debug" class="debug"></div>
         
         <div class="upload-area" id="dropZone">
             <input type="file" id="fileInput" accept=".csv">
@@ -44,116 +42,95 @@
     </div>
 
     <script>
-        function debug(msg) {
-            console.log(msg);
-            var debugArea = document.getElementById('debug');
-            debugArea.style.display = 'block';
-            debugArea.innerHTML += '<div>' + msg + '</div>';
-        }
-
-        function showStatus(msg) {
-            debug('Status: ' + msg);
-            var status = document.getElementById('status');
-            status.textContent = msg;
-            status.style.display = 'block';
-        }
-
         function processFile(file) {
-            debug('開始處理檔案: ' + file.name);
-            showStatus('處理檔案中...');
-            
             Papa.parse(file, {
                 header: true,
                 complete: function(results) {
-                    debug('CSV 解析完成，資料列數: ' + results.data.length);
-                    debug('解析結果: ' + JSON.stringify(results.data[0]));
-                    
-                    if (results.errors.length) {
-                        debug('解析錯誤: ' + JSON.stringify(results.errors));
-                        showStatus('CSV 解析錯誤');
-                        return;
-                    }
-
                     showPreview(results.data);
                     generateBookmarkCode(results.data);
-                    showStatus('處理完成');
                 }
             });
         }
 
         function showPreview(data) {
-            debug('顯示預覽，資料行數: ' + data.length);
             var content = document.getElementById('previewContent');
             var table = '<table class="preview-table"><tr>';
-            var headers = Object.keys(data[0]);
-            headers.forEach(function(header) {
-                table += '<th>' + header + '</th>';
-            });
+            Object.keys(data[0]).forEach(key => table += '<th>' + key + '</th>');
             table += '</tr>';
-            
-            data.forEach(function(row) {
+            data.forEach(row => {
                 table += '<tr>';
-                headers.forEach(function(header) {
-                    table += '<td>' + (row[header] || '') + '</td>';
-                });
+                Object.keys(row).forEach(key => table += '<td>' + (row[key] || '') + '</td>');
                 table += '</tr>';
             });
             table += '</table>';
-            
             content.innerHTML = table;
             document.getElementById('previewArea').classList.remove('hidden');
         }
 
         function generateBookmarkCode(data) {
-            debug('生成書籤代碼，資料: ' + JSON.stringify(data));
-            
-            var code = "javascript:(function(){" +
-                "var adData=" + JSON.stringify(data) + ";" +
-                "var count=0;" +
-                "document.querySelectorAll('ins.adsbygoogle,div[id^=\"google_ads_iframe\"],div[id^=\"div-gpt-ad\"]').forEach(function(ad){" +
-                    "var w=ad.offsetWidth;" +
-                    "var h=ad.offsetHeight;" +
-                    "var size=w+'x'+h;" +
-                    "var ads=adData.filter(function(item){return item.size===size;});" +
-                    "if(ads.length){" +
-                        "var item=ads[count%ads.length];" +
-                        "var container=ad.tagName==='IFRAME'?ad.parentElement:ad;" +
-                        "container.innerHTML='';" +
-                        "container.style.cssText='width:'+w+'px;height:'+h+'px;overflow:hidden;position:relative;';" +
-                        "if(w===300&&h===250){" +
-                            "container.innerHTML='<div style=\"width:300px;height:157px;overflow:hidden\"><img src=\"'+item.imageUrl+'\" style=\"width:300px;height:157px;display:block\"></div><div style=\"height:93px;padding:12px 25px 0 25px;position:relative\"><div style=\"font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden\">'+item.title+'</div><div style=\"font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px\">'+item.brand+'</div><div style=\"position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold\">開啟</div></div>';" +
-                            "count++;" +
-                        "}" +
-                    "}" +
-                "});" +
-                "alert('已替換 '+count+' 個廣告');" +
-            "})();";
+            var code = `javascript:(function(){
+                try {
+                    const adData = ${JSON.stringify(data)};
+                    let replacedCount = 0;
+                    const selectors = ['ins.adsbygoogle', 'div[id^="google_ads_iframe"]', 'div[id^="div-gpt-ad"]', 'div[data-ad-client]', 'div[class*="gpt-ad"]', 'iframe[id^="google_ads_iframe"]', 'div[class*="adsky"]'];
+                    const sizeGroups = {};
+                    adData.forEach(ad => {
+                        if (!sizeGroups[ad.size]) sizeGroups[ad.size] = [];
+                        sizeGroups[ad.size].push(ad);
+                    });
+                    const sizeCounters = {};
+                    Object.keys(sizeGroups).forEach(size => sizeCounters[size] = 0);
 
-            debug('代碼生成完成');
+                    selectors.forEach(s => {
+                        document.querySelectorAll(s).forEach(ad => {
+                            const size = ad.offsetWidth + 'x' + ad.offsetHeight;
+                            if (sizeGroups[size]) {
+                                const items = sizeGroups[size];
+                                const item = items[sizeCounters[size] % items.length];
+                                sizeCounters[size]++;
+
+                                const c = ad.tagName === 'IFRAME' ? ad.parentElement : ad;
+                                c.innerHTML = '';
+                                c.style.cssText = 'width:' + ad.offsetWidth + 'px;height:' + ad.offsetHeight + 'px;overflow:hidden;position:relative;' + (ad.offsetWidth === 970 ? 'display:flex;' : '');
+
+                                if (ad.offsetWidth === 300 && ad.offsetHeight === 250) {
+                                    c.innerHTML = '<div style="width:300px;height:157px;overflow:hidden"><img src="' + item.imageUrl + '" style="width:300px;height:157px;display:block"></div><div style="height:93px;padding:12px 25px 0 25px;position:relative"><div style="font-size:18px;line-height:1.5;font-weight:bold;height:54px;overflow:hidden">' + item.title + '</div><div style="font-size:9px;color:#999999;position:absolute;bottom:15px;left:25px">' + item.brand + '</div><div style="position:absolute;bottom:15px;right:25px;background:#4397F1;color:white;font-size:10px;padding:3px 8px;border-radius:4px;font-weight:bold">開啟</div></div>';
+                                    replacedCount++;
+                                }
+                            }
+                        });
+                    });
+
+                    alert('已替換 ' + replacedCount + ' 個廣告位');
+                } catch(e) {
+                    alert('錯誤：' + e.message);
+                }
+            })();`;
+
             document.getElementById('bookmarkCode').textContent = code;
             document.getElementById('codeArea').classList.remove('hidden');
-            debug('代碼區域已顯示');
         }
 
         function copyToClipboard() {
             var code = document.getElementById('bookmarkCode').textContent;
-            navigator.clipboard.writeText(code).then(function() {
-                showStatus('代碼已複製！');
+            navigator.clipboard.writeText(code).then(() => {
+                var status = document.getElementById('status');
+                status.textContent = '代碼已複製！';
+                status.style.display = 'block';
+                setTimeout(() => status.style.display = 'none', 2000);
             });
         }
 
-        document.getElementById('fileInput').addEventListener('change', function(e) {
-            debug('檔案選擇事件觸發');
-            var file = e.target.files[0];
+        document.getElementById('fileInput').addEventListener('change', e => {
+            const file = e.target.files[0];
             if (file) processFile(file);
         });
 
-        var dropZone = document.getElementById('dropZone');
-        dropZone.addEventListener('dragover', function(e) { e.preventDefault(); });
-        dropZone.addEventListener('drop', function(e) {
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', e => e.preventDefault());
+        dropZone.addEventListener('drop', e => {
             e.preventDefault();
-            debug('檔案拖放事件觸發');
-            var file = e.dataTransfer.files[0];
+            const file = e.dataTransfer.files[0];
             if (file) processFile(file);
         });
     </script>
