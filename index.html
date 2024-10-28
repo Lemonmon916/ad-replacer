@@ -11,6 +11,7 @@
         h1, h2 { text-align: center; color: #333; }
         .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 20px 0; background: #fafafa; border-radius: 4px; }
         #status { padding: 10px; margin: 10px 0; border-radius: 4px; display: none; background: #e8f5e9; }
+        .debug { background: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 4px; }
         .preview-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
         .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .hidden { display: none; }
@@ -22,6 +23,7 @@
     <div class="container">
         <h1>廣告替換工具</h1>
         <div id="status"></div>
+        <div id="debug" class="debug"></div>
         
         <div class="upload-area" id="dropZone">
             <input type="file" id="fileInput" accept=".csv">
@@ -42,56 +44,59 @@
     </div>
 
     <script>
+        function debug(msg) {
+            console.log(msg);
+            var debugArea = document.getElementById('debug');
+            debugArea.style.display = 'block';
+            debugArea.innerHTML += '<div>' + msg + '</div>';
+        }
+
         function showStatus(msg) {
+            debug('Status: ' + msg);
             var status = document.getElementById('status');
             status.textContent = msg;
             status.style.display = 'block';
         }
 
         function processFile(file) {
+            debug('開始處理檔案: ' + file.name);
             showStatus('處理檔案中...');
             
             Papa.parse(file, {
                 header: true,
-                dynamicTyping: true,
                 complete: function(results) {
-                    console.log('ParseResults:', results);  // 調試用
+                    debug('CSV 解析完成，資料列數: ' + results.data.length);
+                    debug('解析結果: ' + JSON.stringify(results.data[0]));
+                    
                     if (results.errors.length) {
-                        showStatus('CSV 解析錯誤: ' + results.errors[0].message);
+                        debug('解析錯誤: ' + JSON.stringify(results.errors));
+                        showStatus('CSV 解析錯誤');
                         return;
                     }
-                    if (!results.data || results.data.length === 0) {
-                        showStatus('沒有發現有效資料');
-                        return;
-                    }
+
                     showPreview(results.data);
                     generateBookmarkCode(results.data);
                     showStatus('處理完成');
-                },
-                error: function(error) {
-                    showStatus('檔案處理錯誤: ' + error.message);
                 }
             });
         }
 
         function showPreview(data) {
+            debug('顯示預覽，資料行數: ' + data.length);
             var content = document.getElementById('previewContent');
-            var headers = ['imageUrl', 'videoUrl', 'title', 'brand', 'size'];
-            
             var table = '<table class="preview-table"><tr>';
+            var headers = Object.keys(data[0]);
             headers.forEach(function(header) {
                 table += '<th>' + header + '</th>';
             });
             table += '</tr>';
             
             data.forEach(function(row) {
-                if (row.imageUrl) {  // 只顯示有效行
-                    table += '<tr>';
-                    headers.forEach(function(header) {
-                        table += '<td>' + (row[header] || '') + '</td>';
-                    });
-                    table += '</tr>';
-                }
+                table += '<tr>';
+                headers.forEach(function(header) {
+                    table += '<td>' + (row[header] || '') + '</td>';
+                });
+                table += '</tr>';
             });
             table += '</table>';
             
@@ -100,15 +105,12 @@
         }
 
         function generateBookmarkCode(data) {
-            // 過濾掉空行
-            data = data.filter(function(row) {
-                return row.imageUrl && row.size && row.title;
-            });
-
+            debug('生成書籤代碼，資料: ' + JSON.stringify(data));
+            
             var code = "javascript:(function(){" +
                 "var adData=" + JSON.stringify(data) + ";" +
                 "var count=0;" +
-                "document.querySelectorAll('ins.adsbygoogle,div[id^=\"google_ads_iframe\"],div[id^=\"div-gpt-ad\"],div[data-ad-client],div[class*=\"gpt-ad\"],iframe[id^=\"google_ads_iframe\"],div[class*=\"adsky\"]').forEach(function(ad){" +
+                "document.querySelectorAll('ins.adsbygoogle,div[id^=\"google_ads_iframe\"],div[id^=\"div-gpt-ad\"]').forEach(function(ad){" +
                     "var w=ad.offsetWidth;" +
                     "var h=ad.offsetHeight;" +
                     "var size=w+'x'+h;" +
@@ -127,22 +129,21 @@
                 "alert('已替換 '+count+' 個廣告');" +
             "})();";
 
+            debug('代碼生成完成');
             document.getElementById('bookmarkCode').textContent = code;
             document.getElementById('codeArea').classList.remove('hidden');
+            debug('代碼區域已顯示');
         }
 
         function copyToClipboard() {
             var code = document.getElementById('bookmarkCode').textContent;
             navigator.clipboard.writeText(code).then(function() {
                 showStatus('代碼已複製！');
-                setTimeout(function() {
-                    document.getElementById('status').style.display = 'none';
-                }, 2000);
             });
         }
 
-        // 綁定事件
         document.getElementById('fileInput').addEventListener('change', function(e) {
+            debug('檔案選擇事件觸發');
             var file = e.target.files[0];
             if (file) processFile(file);
         });
@@ -151,6 +152,7 @@
         dropZone.addEventListener('dragover', function(e) { e.preventDefault(); });
         dropZone.addEventListener('drop', function(e) {
             e.preventDefault();
+            debug('檔案拖放事件觸發');
             var file = e.dataTransfer.files[0];
             if (file) processFile(file);
         });
